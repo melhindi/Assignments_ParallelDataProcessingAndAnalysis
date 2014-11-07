@@ -132,6 +132,11 @@ def determine_bcv(centroids):
     if centroids is None or not centroids:
         raise ValueError("The given centroids list is None or empty!")
 
+    if len(centroids) <= 1:
+        bcv = 0
+        print("*BCV: " + str(bcv))
+        return bcv
+
     # Extract index of each centroid from the initial list
     # We will use the index later to detect duplicates
     inClusterList = []
@@ -166,17 +171,19 @@ def determine_bcv(centroids):
 
 if __name__ == "__main__":
 
-    if len(sys.argv) != 4:
+    if len(sys.argv) != 5:
         # print >> sys.stderr, "Usage: kmeans <file> <k> <convergeDist>"
-        print >> sys.stderr, "Usage: kmeans <maxIterations> <Npoints> <k>"
+        print >> sys.stderr, "Usage: kmeans <file> <maxIterations> <Npoints> <k>"
         exit(-1)
 
     sc = SparkContext(appName="PythonKMeans")
 
-    maxIterations = int(sys.argv[1])
-    Npoints = int(sys.argv[2])
-    K = int(sys.argv[3])
-    fname = './dataset_N' + str(Npoints) + '_K' + str(K) + '.txt'
+    fname = sys.argv[1]
+    maxIterations = int(sys.argv[2])
+    Npoints = int(sys.argv[3])
+    K = int(sys.argv[4])
+    if fname is "" or not os.path.isfile(fname):
+        fname = './dataset_N' + str(Npoints) + '_K' + str(K) + '.txt'
     data = None
     if os.path.isfile(fname):
         print("Loading data from file: " + fname)
@@ -188,6 +195,7 @@ if __name__ == "__main__":
         data = sc.parallelize(dataLocal)
 
     print "Number of points: %d" % (data.count())
+    print "K: %d" % (K)
 
     centroids = data.takeSample(False, K, 1)
     newCentroids = None  # At the beginning we have no newCentroids, this will let us start calculating newCentroids
