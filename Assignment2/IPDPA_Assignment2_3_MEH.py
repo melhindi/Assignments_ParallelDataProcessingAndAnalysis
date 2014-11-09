@@ -13,25 +13,6 @@ import random
 def parseVector(line):
     return np.array([float(x) for x in line.split(' ')])
 
-
-def closestPoint(p, centers):
-    bestIndex = 0
-    closest = float("+inf")
-    for i in range(len(centers)):
-        tempDist = np.sum((p - centers[i]) ** 2)
-        if tempDist < closest:
-            closest = tempDist
-            bestIndex = i
-    return bestIndex
-
-
-def distanceCentroidsMoved(oldCentroids, newCentroids):
-    sum = 0.0
-    for index in range(len(oldCentroids)):
-        sum += np.sum((oldCentroids[index] - newCentroids[index]) ** 2)
-    return sum
-
-
 def generateData(N, k):
     """ Generates N 2D points in k clusters
         From http://datasciencelab.wordpress.com/2013/12/12/clustering-with-k-means-in-python/
@@ -57,94 +38,6 @@ def generateData(N, k):
     f.close();
 
     return X
-
-
-def centroidsChanged(old, new):
-    if old is None or new is None:
-        return True
-    contained = False
-    for p in new:
-        contained = any((p == x).all() for x in old)
-        if not contained:
-            return True
-
-    return False
-
-
-def determine_wcv(closest, centroids):
-    """
-    Calculate within-cluster variation as SSE
-    SSE is sum of squared distances between each sample in
-    cluster Ci and its centroid M i, summed over all clusters
-
-    :type closest: RDD
-    :type centroids: list
-    :param closest: RDD containing all points and the index of the cluster they belong to
-    :param centroids: List of the cluster centroids
-    """
-
-    # Input validation
-    message = ""
-    if centroids is None or not centroids:
-        message += "The given centroids list is None or empty!"
-    if closest is None or closest.count() == 0:
-        message += "The passed RDD 'closest' is None or empty!"
-        raise ValueError(message)
-
-    # With map we calculate squared distance and with reduce we calc the sum over all clusters
-    wcv = closest.map(lambda (k, v): np.sum((centroids[k] - v[0]) ** 2)).reduce(lambda x, y: x + y)
-    print("*WCV: " + str(wcv))
-
-
-def determine_bcv(centroids):
-    """
-    Calculate between-cluster variation
-    We use sum of squared distances between centroids
-
-    :type centroids: list
-    :param centroids: List of centroids as numpy vectors
-    :return: bcv as float
-    """
-
-    # Input validation
-    if centroids is None or not centroids:
-        raise ValueError("The given centroids list is None or empty!")
-
-    if len(centroids) <= 1:
-        bcv = 0
-        print("*BCV: " + str(bcv))
-        return bcv
-
-    # Extract index of each centroid from the initial list
-    # We will use the index later to detect duplicates
-    inClusterList = []
-    for x in xrange(len(centroids)):
-        inClusterList.append((x, centroids[x]))
-
-    # Create a rdd containing the centroids
-    inClusterList = sc.parallelize(inClusterList)
-    N = inClusterList.count()
-    distances = sc.parallelize([])
-
-    # Calculate pairwise distance of centroids
-    for cIndex in range(N):
-        # Fetch the centroid values for the current centroid index
-        iq, q = inClusterList.filter(lambda (idx, p): cIndex == idx).collect()[0]
-        # Calculate distance between current centroid and all others
-        partialDistances = inClusterList.map(
-            lambda (ip, p): (np.sum((p - q) ** 2), (ip, iq) if ip > iq else (
-                iq, ip)))  # We sort the index tuple to be able to identify duplicates
-
-        # Remove 0 distances, this saves some space
-        partialDistances = partialDistances.filter(lambda (d, indexes): d > 0)
-        distances = distances.union(partialDistances)
-
-    distances = distances.distinct().map(lambda (d, indexes): d)
-    # Calculate BCV as sum of all distances
-    bcv = distances.reduce(lambda d1, d2: d1 + d2)
-
-    print("*BCV: " + str(bcv))
-    return bcv
 
 
 def getMin(left, right):
