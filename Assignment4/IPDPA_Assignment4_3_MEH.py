@@ -17,7 +17,7 @@ def generateTestData(numberOfSets, numberOfElements, N):
     if numberOfElements > N:
         raise ValueError("Please choose numberOfElements less than or equals to "+str(N))
 
-    numberToReplace = int(numberOfElements * 1)
+    numberToReplace = int(numberOfElements * 0.02)
     print ("numberToReplace= %i"% numberToReplace)
     rddList = []
     firstSet = np.random.random_integers(N, size=numberOfElements)
