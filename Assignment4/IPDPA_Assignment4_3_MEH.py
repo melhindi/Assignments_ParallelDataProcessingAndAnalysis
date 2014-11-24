@@ -1,9 +1,10 @@
 """
-Hierarchical Clustering Algorithm
+Calculating MinHash values
 """
 
 import sys
 import os
+import pprint
 
 import numpy as np
 from pyspark import SparkContext
@@ -37,7 +38,7 @@ def generateTestData(numberOfSets, numberOfElements, N):
     return rddList
 
 
-def generateHashParams(K, N):
+def generateHashParams(K):
     hashParams = []
     p = np.int32(2 ** 31 - 1)
     print ("prime is %i" % p)
@@ -47,50 +48,35 @@ def generateHashParams(K, N):
         b = np.int32(random.randrange(1, np.iinfo(np.int32).max))
         print ("For hashf %i: a=%i, b=%i" % (i,a,b))
         hashParams.append((a,b,p))
-        #
 
     return hashParams
 
 
-def minHash(hParams, N, currentSet):
-    a,b,p = hParams
-    h = lambda x: (((a * x + b) % p) % N) + 1
-    #find smallest value hi(r) for a row r with S(r) = 1
-    min_value = -1
-    # since the set is sorted we iterate the rows with 1s from small to large
-    for i in xrange(1, N):
-        #print "Looking for"
-        #print i
-        #print "in:"
-        #print currentSet
-        index = np.where(currentSet==i)
-        #print index[0]
-        if index[0]:
-            index = index[0][0]
-            #print ("Found row with 1 in index %i, computing minHash!" % index)
-            if min_value == -1:
-                min_value = h(index)
-                #print("Set initial minHash %i" % min_value)
-            else:
-                value = h(index)
-                if value < min_value:
-                    print("Found smaller minHash %i" % value)
-                    min_value = value
-
-        else:
-            #print "Element is not contained"
-            continue
-
-    print("minHash: "+str(min_value))
-    return min_value
-
-
 def computeSig(hParams, N, currentSet):
-    # hier ist das K doch gar nicht definiert, oder?
     l = len(hParams)
+    #init signature
     signature = np.zeros(l)
+    hs =  []
     for i in xrange(l):
-        signature[i] = minHash(hParams[i], N, currentSet)
+        signature[i] = np.iinfo(np.int32).max
+        a,b,p = hParams[i]
+        #print hParams[i]
+        #print ("h%i: (((%i * x + %i) mod %i) mod %i) + 1)" % (i, a,b, p, N))
+        hs.append(lambda x: (((a * x + b) % p) % N) + 1)
+
+    print("Finished init signature")
+    for e in currentSet:
+        for i in xrange(l):
+            a,b,p = hParams[i]
+            #print hParams[i]
+            #print ("h%i: (((%i * %i + %i) mod %i) mod %i) + 1)" % (i, a,e,b, p, N))
+            minhash = hs[i](e)
+            #print "Iter %i MinHash %i for int %i" % (i, minhash , e)
+            if minhash < signature[i]:
+                #print("Replacing %i with %i" % (signature[i], minhash))
+                signature[i] = minhash
+
+    #print "Signature: "+ str(signature)
     return signature
 
 
@@ -106,40 +92,60 @@ def computeMinHashSig(K, N, rdd):
     """
     sc = SparkContext(appName="PythonMinhash")
     # first choose a set of K random hash functions h1,..., hK (described in lecture 5 on slide 33)
-    hashParams = sc.broadcast(generateHashParams(K, N))
+    hashParams = sc.broadcast(generateHashParams(K))
 
     data = sc.parallelize(rdd)
     sig = data.map(lambda x: computeSig(hashParams.value, N, x))
     return sig.collect()
 
+def detIndenticalValues(set1, set2):
+    counter = 0
+    #print set1
+    #print set2
+    for e in set1:
+        if e in set2:
+            counter+=1
+
+    print ("Number of identical values %i" % counter)
+    return counter
+
 
 if __name__ == "__main__":
-    numberOfSets = 10
+    K = 30
+    N = 10**5
+    numberOfSets = 100
     numberOfElements = 20000
 
-    if len(sys.argv) < 3:
+    if len(sys.argv) < 2:
         scriptname = os.path.basename(__file__)
-        print >> sys.stderr, "Usage " + str(
-            scriptname) + " <#hashfunctions> <#maxInt> [<#sets>] [<#elements>]"
-        exit(-1)
+        print "Running script with default values. You can specify arguments as follows:"
+        print "Usage: " + str(
+            scriptname) + " [<#hashfunctions>] [<#maxInt>] [<#sets>] [<#elements>]"
 
-    K = int(sys.argv[1])
-    print ("K= %i" % K)
-    N = int(sys.argv[2])
-    print ("N= %i" % N)
-    if len(sys.argv) == 4:
+    if len(sys.argv) >= 2:
+        K = int(sys.argv[1])
+    if len(sys.argv) >= 3:
+        N = int(sys.argv[2])
+    if len(sys.argv) >= 4:
         numberOfSets = int(sys.argv[3])
-        print ("numberOfSets= %i" % numberOfSets)
     if len(sys.argv) == 5:
         numberOfElements = int(sys.argv[4])
-        print ("numberOfElements= %i" % numberOfElements)
+
+    print ("K= %i" % K)
+    print ("N= %i" % N)
+    print ("numberOfSets= %i" % numberOfSets)
+    print ("numberOfElements= %i" % numberOfElements)
 
     rdd = generateTestData(numberOfSets, numberOfElements, N)
     output = computeMinHashSig(K, N, rdd)
+    #rdd = [np.asarray([1,2,3]),np.asarray([4,3,9])]#,np.asarray([5,6,7]),np.asarray([6,8,10])]
+    #output = computeMinHashSig(2, 10, rdd)
 
-    print output
+    pprint.pprint(output)
 
-    # Vergleiche Signaturen
-    #for i in range(len(output)):
-    #    similarity = (output[0] == output[i]).sum() / float(len(output[0]))
-    #    print "Similarity for sig of column " + str(0) + " and " + str(i) + " = " + str(similarity)
+    print "Length of first set: %i" % len(output[0])
+    print "Similarity is calculated as 'num of identical values' / 'length of first set':"
+    for i in range(1,len(output)):
+        iv = detIndenticalValues(output[0], output[i])
+        similarity = iv / float(len(output[0]))
+        print "Similarity for sig of column " + str(0) + " and " + str(i) + " = " + str(similarity)
