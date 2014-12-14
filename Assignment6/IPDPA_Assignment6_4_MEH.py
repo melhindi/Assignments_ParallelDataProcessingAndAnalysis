@@ -62,14 +62,14 @@ def sgd(coefficients, points, learningRate):
 
                 new_coefficients[j] = coefficients[j] - learningRate*gradients[j]
 
-            #make a step after computing each of the “partial gradients”
+            #make a step after computing each of the partial gradients
             coefficients = new_coefficients
             #print("New coefficients")
             #pprint(coefficients)
 
             error = computeError(coefficients,points)
-            print "Error"
-            print(error)
+            #print "Error"
+            #print(error)
         counter +=1
 
     return coefficients
@@ -80,7 +80,7 @@ def fitFunction(points, degree):
     for i in xrange(0, degree+1):
         coefficients.append(random())
 
-    coefficients = sgd(coefficients, points, 0.0001)
+    coefficients = sgd(coefficients, points, 0.0004)
     print "Final result"
     pprint(coefficients)
 
@@ -112,7 +112,7 @@ if __name__ == "__main__":
     degree = 2
 
     points = []
-    for i in range(100):
+    for i in range(10):
         a = 0.2
         b = 0.2
         c = 0.2
